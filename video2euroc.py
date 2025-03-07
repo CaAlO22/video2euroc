@@ -16,6 +16,7 @@ import os
 import sys
 import argparse
 import subprocess
+import shutil
 from tqdm import tqdm
 
 
@@ -38,10 +39,28 @@ def run_command(command, desc):
         return False
 
 
+def clean_output_directory(directory):
+    """
+    清空输出目录，如果目录存在则删除其中的内容，如果不存在则创建
+    """
+    # 获取目录的绝对路径
+    abs_dir = os.path.abspath(directory)
+    
+    # 如果目录存在，删除它及其所有内容
+    if os.path.exists(abs_dir):
+        print(f"\n清空输出目录: {abs_dir}")
+        shutil.rmtree(abs_dir)
+    
+    # 创建新的空目录
+    os.makedirs(abs_dir, exist_ok=True)
+    print(f"创建目录: {abs_dir}")
+    return True
+
+
 def main():
     # 解析命令行参数
     parser = argparse.ArgumentParser(description="将视频转换为EuRoC格式的数据集")
-    parser.add_argument("video_path", help="输入视频文件的路径")
+    parser.add_argument("video_path", nargs='?', default="test.mp4", help="输入视频文件的路径 (默认: test.mp4)")
     parser.add_argument("--output-dir", "-o", default="main_folder/mav0/cam0/data",
                         help="图像输出目录路径 (默认: main_folder/mav0/cam0/data)")
     parser.add_argument("--timestamp-file", "-t", default="main_folder/mav0/timestamp.txt",
@@ -74,6 +93,12 @@ def main():
     print(f"时间戳文件: {args.timestamp_file}")
     print(f"传感器配置文件: {args.sensor_file}")
     print(f"相机参数: fx={args.fx}, fy={args.fy}, cx={args.cx}, cy={args.cy}")
+    
+    # 清空输出目录
+    output_base_dir = os.path.dirname(os.path.dirname(args.output_dir))
+    if not clean_output_directory(output_base_dir):
+        print(f"错误: 无法清空输出目录 {output_base_dir}")
+        return 1
     
     # 步骤1: 从视频中提取帧
     video2frames_script = os.path.join(tools_dir, "video2frames.py")
