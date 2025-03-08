@@ -35,7 +35,7 @@ python video2euroc.py my_video.mp4
 ### 高级用法（自定义参数）
 
 ```bash
-python video2euroc.py my_video.mp4 --output-dir custom_folder/mav0/cam0/data --fx 450.0 --fy 450.0
+python video2euroc.py my_video.mp4 --output-dir custom_folder/mav0/cam0/data --raw-width 1920
 ```
 
 ## 参数说明
@@ -50,6 +50,7 @@ python video2euroc.py my_video.mp4 --output-dir custom_folder/mav0/cam0/data --f
 | `--fy` | - | 相机参数fy | `363.76489` |
 | `--cx` | - | 相机参数cx | `239.17206` |
 | `--cy` | - | 相机参数cy | `173.14810` |
+| `--raw-width` | - | 原始视频宽度，用于缩放相机内参 | 不缩放 |
 
 ## 输出结构
 
@@ -81,6 +82,8 @@ main_folder/
 - 功能：从视频中提取帧并调整尺寸（默认宽度为480像素）
 - 输出：按纳秒级时间戳命名的PNG图像文件
 
+注意，这个脚本会将图片压缩到480px宽度。
+
 ### 3. tools/generate_timestamp.py
 
 时间戳文件生成工具，用于扫描图片目录，生成包含每个图片时间戳信息的文件。
@@ -94,24 +97,32 @@ main_folder/
 
 - 功能：根据用户提供的相机内参生成配置文件
 - 输出：包含相机参数和ORB特征提取器参数的YAML文件
+- 自动检测：如果项目根目录下存在camera_matrix.csv和distortion_coefficients.csv文件，将优先从中读取相机参数
 
-## 注意事项
+## 相机标定数据使用
 
-1. 输入视频应当稳定，避免剧烈抖动，以便于SLAM算法处理
-2. 默认相机参数可能需要根据实际相机进行调整
-3. 生成的数据集默认分辨率为480x360像素
-4. 时间戳以纳秒为单位
+本工具支持直接使用Matlab相机标定工具箱导出的标定数据。在项目根目录下放置以下文件可自动读取相机参数：
 
-## 常见问题
+1. `camera_matrix.csv` - 包含相机内参矩阵
+2. `distortion_coefficients.csv` - 包含畸变系数
 
-**Q: 如何获取相机的内参？**
+### 从Matlab导出相机参数
 
-A: 可以使用OpenCV的相机标定功能获取相机内参，或参考相机厂商提供的参数。
+在Matlab中使用以下代码从cameraParams对象导出相机参数：
 
-**Q: 生成的数据集可以用于哪些SLAM系统？**
+```matlab
+% 假设您已经有了cameraParams对象
+% 提取内参矩阵
+K = cameraParams.IntrinsicMatrix';  % 注意这里需要转置
 
-A: 生成的数据集符合EuRoC格式，可用于ORB-SLAM、VINS-Fusion等常见视觉SLAM系统。
+% 提取畸变系数 (针对径向畸变和切向畸变)
+distCoeffs = cameraParams.RadialDistortion;
+if ~isempty(cameraParams.TangentialDistortion)
+    distCoeffs = [distCoeffs, cameraParams.TangentialDistortion];
+end
 
-**Q: 如何调整输出图像的分辨率？**
+writematrix(K, 'camera_matrix.csv');
+writematrix(distCoeffs, 'distortion_coefficients.csv');
+```
 
-A: 可以修改`tools/video2frames.py`中的`resize_image`函数的`target_width`参数。
+导出后，将这两个文件放在项目根目录下，并使用`--raw-width`参数指定原始视频的宽度，工具会自动缩放相机参数以适应480px宽度的输出图像。
